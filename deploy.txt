@@ -1,0 +1,42 @@
+# Déploiement avec Truffle
+
+# Compiler les contrats
+truffle compile
+
+# Déploiement local
+truffle migrate --network development
+
+# Déploiement sur BSC Testnet
+truffle migrate --network bsc_testnet
+
+# Déploiement sur BSC Mainnet
+truffle migrate --network bsc
+
+# Vérifier le contrat sur BSCScan (pour testnet)
+truffle run verify SaturneLottery --network bsc_testnet
+
+# Vérifier le contrat sur BSCScan (pour mainnet)
+truffle run verify SaturneLottery --network bsc
+
+
+
+
+
+
+
+# Déploiement avec Hardhat
+
+# Compiler les contrats
+npx hardhat compile
+
+# Déploiement en testnet BSC
+npx hardhat run scripts/deploy-hardhat.js --network bsc_testnet
+
+# Déploiement en mainnet BSC
+npx hardhat run scripts/deploy-hardhat.js --network bsc
+
+# Vérifier le contrat sur BSCScan (pour testnet)
+npx hardhat verify --network bsc_testnet DEPLOYED_CONTRACT_ADDRESS "0xFa60d973F7642B748046464e165A65B7323b0DEE3" "RANDOM_GENERATOR_ADDRESS"
+
+# Vérifier le contrat sur BSCScan (pour mainnet)
+npx hardhat verify --network bsc DEPLOYED_CONTRACT_ADDRESS "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82" "RANDOM_GENERATOR_ADDRESS"
