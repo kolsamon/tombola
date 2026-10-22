@@ -4,12 +4,12 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   console.log("Déploiement avec le compte:", deployer.address);
-  console.log("Solde du compte:", (await deployer.getBalance()).toString());
+  console.log("Solde du compte:", (await ethers.provider.getBalance(deployer.address)).toString());
 
   // Adresses des tokens CAKE pour BSC
   const cakeAddresses = {
-    bsc: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82", // BSC Mainnet
-    bsc_testnet: "0xFa60d973F7642B748046464e165A65B7323b0DEE3" // BSC Testnet
+    bsc: "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82", // BSC Mainnet
+    bsc_testnet: "0xFa60D973F7642B748046464e165A65B7323b0DEE" // BSC Testnet
   };
 
   // Adresse du générateur de nombres aléatoires (à remplacer par l'adresse réelle)

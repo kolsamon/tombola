@@ -53,16 +53,22 @@ module.exports = {
     },
     bsc: {
       url: "https://bsc-dataseed.binance.org/",
-      accounts: [process.env.MAINNET_PRIVATE_KEY],
+      accounts: process.env.MAINNET_PRIVATE_KEY ? [process.env.MAINNET_PRIVATE_KEY] : [],
       gas: 5500000,
       gasPrice: 5000000000,
     },
     bsc_testnet: {
       url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
-      accounts: [process.env.TESTNET_PRIVATE_KEY],
+      accounts: process.env.TESTNET_PRIVATE_KEY ? [process.env.TESTNET_PRIVATE_KEY] : [],
       gas: 5500000,
       gasPrice: 20000000000,
     }
+  },
+  etherscan: {
+    apiKey: {
+      bscTestnet: process.env.BSCSCAN_API_KEY || "",
+      bsc: process.env.BSCSCAN_API_KEY || "",
+    },
   },
   mocha: {
     timeout: 100000

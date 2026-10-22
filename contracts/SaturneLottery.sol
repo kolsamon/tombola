@@ -27,6 +27,13 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
     uint256 public referralCommission = 500; // 5% commission for referrers (500/10000)
     uint256 public treasuryCommission = 1000; // 10% of ticket sales go to the treasury (1000/10000)
 
+    // Prize pool split at draw time: winners only share part of the pot. The rest is either split
+    // evenly between a consolation pool for losing tickets and the treasury (consolation enabled)
+    // or sent entirely to the treasury (consolation disabled). The flag is copied into each round
+    // when it starts, so toggling it never changes the rule of a round already open.
+    uint256 public winnersShareBps = 5000; // 50% of the post-treasury-fee pool goes to bracket winners
+    bool public consolationEnabled = true; // whether losing tickets share a consolation pool
+
     uint256 public currentLotteryId;
     uint256 public currentTicketId;
 
@@ -66,6 +73,8 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
         uint256 firstTicketIdNextLottery;
         uint256 amountCollectedInCake;
         uint32 finalNumber;
+        bool consolationEnabled; // consolation rule in force for this round, copied at start
+        uint256 cakePerLosingTicket; // share of the consolation pool for each losing ticket
     }
 
     struct Ticket {
@@ -124,6 +133,7 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
     event NewRandomGenerator(address indexed randomGenerator);
     event TicketsPurchase(address indexed buyer, uint256 indexed lotteryId, uint256 numberTickets);
     event TicketsClaim(address indexed claimer, uint256 amount, uint256 indexed lotteryId, uint256 numberTickets);
+    event LosingTicketsClaim(address indexed claimer, uint256 amount, uint256 indexed lotteryId, uint256 numberTickets);
     event ReferralRegistered(address indexed user, address indexed referrer);
     event ReferrerPaid(address indexed referrer, uint256 amount);
     event CommissionDistributed(uint256 indexed lotteryId, uint256 treasuryAmount, uint256 referralAmount);
@@ -187,11 +197,12 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
         // Transfer cake tokens to this contract
         cakeToken.safeTransferFrom(address(msg.sender), address(this), amountCakeToTransfer);
 
+        // Increment the total amount collected for the lottery round. Must happen before the
+        // commissions are deducted from it, otherwise the first purchase of a round underflows.
+        _lotteries[_lotteryId].amountCollectedInCake += amountCakeToTransfer;
+
         // Distribute commissions (referral + treasury)
         _distributeCommissions(_lotteryId, amountCakeToTransfer, msg.sender);
-
-        // Increment the total amount collected for the lottery round
-        _lotteries[_lotteryId].amountCollectedInCake += amountCakeToTransfer;
 
         for (uint256 i = 0; i < _ticketNumbers.length; i++) {
             uint32 thisTicketNumber = _ticketNumbers[i];
@@ -271,6 +282,48 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
     }
 
     /**
+     * @notice Claim a set of losing tickets to receive a share of the consolation pool
+     * @param _lotteryId: lottery id
+     * @param _ticketIds: array of ticket ids
+     * @dev Callable by users only, not contract! A ticket is only eligible if it did not
+     * win any prize bracket for this lottery, and the round must have been started with
+     * the consolation rule enabled.
+     */
+    function claimLosingTickets(uint256 _lotteryId, uint256[] calldata _ticketIds) external notContract nonReentrant {
+        require(_ticketIds.length != 0, "Length must be >0");
+        require(_ticketIds.length <= maxNumberTicketsPerBuyOrClaim, "Too many tickets");
+        require(_lotteries[_lotteryId].status == Status.Claimable, "Lottery not claimable");
+
+        uint256 cakePerLosingTicket = _lotteries[_lotteryId].cakePerLosingTicket;
+        require(cakePerLosingTicket != 0, "No consolation for this lottery");
+
+        uint256 rewardInCakeToTransfer;
+
+        for (uint256 i = 0; i < _ticketIds.length; i++) {
+            uint256 thisTicketId = _ticketIds[i];
+
+            require(_lotteries[_lotteryId].firstTicketIdNextLottery > thisTicketId, "TicketId too high");
+            require(_lotteries[_lotteryId].firstTicketId <= thisTicketId, "TicketId too low");
+            require(msg.sender == _tickets[thisTicketId].owner, "Not the owner");
+
+            // A ticket is a loser only if it has no prize in any bracket
+            for (uint32 bracket = 0; bracket < 6; bracket++) {
+                require(_calculateRewardsForTicketId(_lotteryId, thisTicketId, bracket) == 0, "Ticket has a winning bracket");
+            }
+
+            // Update the lottery ticket owner to 0x address
+            _tickets[thisTicketId].owner = address(0);
+
+            rewardInCakeToTransfer += cakePerLosingTicket;
+        }
+
+        // Transfer money to msg.sender
+        cakeToken.safeTransfer(msg.sender, rewardInCakeToTransfer);
+
+        emit LosingTicketsClaim(msg.sender, rewardInCakeToTransfer, _lotteryId, _ticketIds.length);
+    }
+
+    /**
      * @notice Close lottery
      * @param _lotteryId: lottery id
      * @dev Callable by operator
@@ -310,9 +363,17 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
         uint256 numberAddressesInPreviousBracket;
 
         // Calculate the amount to share post-treasury fee
-        uint256 amountToShareToWinners = (
+        uint256 amountToShareAfterFee = (
             ((_lotteries[_lotteryId].amountCollectedInCake) * (10000 - _lotteries[_lotteryId].treasuryFee))
         ) / 10000;
+
+        // Winners only share part of that pool (default 50%, see winnersShareBps). If the round was
+        // started with the consolation rule on, the rest is split evenly between the losing tickets'
+        // consolation pool and the treasury; otherwise it all goes to the treasury.
+        uint256 amountToShareToWinners = (amountToShareAfterFee * winnersShareBps) / 10000;
+        uint256 amountToShareToLosers = _lotteries[_lotteryId].consolationEnabled
+            ? (amountToShareAfterFee - amountToShareToWinners) / 2
+            : 0;
 
         // Initializes the amount to withdraw to treasury
         uint256 amountToWithdrawToTreasury;
@@ -352,6 +413,25 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
             }
         }
 
+        // numberAddressesInPreviousBracket now holds the total count of winning tickets (i.e.
+        // tickets that were paid out in some bracket). The rest of the tickets sold are losers
+        // and share the consolation pool, when the round has one.
+        if (amountToShareToLosers != 0) {
+            uint256 totalLosingTickets = (_lotteries[_lotteryId].firstTicketIdNextLottery -
+                _lotteries[_lotteryId].firstTicketId) - numberAddressesInPreviousBracket;
+
+            if (totalLosingTickets != 0) {
+                uint256 cakePerLosingTicket = amountToShareToLosers / totalLosingTickets;
+                _lotteries[_lotteryId].cakePerLosingTicket = cakePerLosingTicket;
+
+                // Dust left over from the integer division stays with the treasury
+                amountToWithdrawToTreasury += amountToShareToLosers - (cakePerLosingTicket * totalLosingTickets);
+            } else {
+                // No losing tickets to pay out: redirect the consolation pool to the treasury
+                amountToWithdrawToTreasury += amountToShareToLosers;
+            }
+        }
+
         // Update internal statuses for lottery
         _lotteries[_lotteryId].finalNumber = finalNumber;
         _lotteries[_lotteryId].status = Status.Claimable;
@@ -361,7 +441,9 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
             amountToWithdrawToTreasury = 0;
         }
 
-        amountToWithdrawToTreasury += (_lotteries[_lotteryId].amountCollectedInCake - amountToShareToWinners);
+        amountToWithdrawToTreasury += (_lotteries[_lotteryId].amountCollectedInCake -
+            amountToShareToWinners -
+            amountToShareToLosers);
 
         // Transfer CAKE to treasury address
         cakeToken.safeTransfer(treasuryAddress, amountToWithdrawToTreasury);
@@ -466,7 +548,9 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
             firstTicketId: currentTicketId,
             firstTicketIdNextLottery: currentTicketId,
             amountCollectedInCake: pendingInjectionNextLottery,
-            finalNumber: 0
+            finalNumber: 0,
+            consolationEnabled: consolationEnabled,
+            cakePerLosingTicket: 0
         });
 
         emit LotteryOpen(
@@ -554,6 +638,28 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
         require(_treasuryCommission <= 3000, "Treasury commission too high"); // Max 30%
         referralCommission = _referralCommission;
         treasuryCommission = _treasuryCommission;
+    }
+
+    /**
+     * @notice Update the share of the prize pool reserved for bracket winners
+     * @dev Only callable by owner. The remainder (10000 - _winnersShareBps) is split evenly
+     * between the losing tickets' consolation pool and the treasury at draw time when the
+     * consolation rule is on, and goes entirely to the treasury otherwise.
+     * @param _winnersShareBps: new winners share, in basis points (5000 = 50%)
+     */
+    function setWinnersShareBps(uint256 _winnersShareBps) external onlyOwner {
+        require(_winnersShareBps <= 10000, "Winners share too high");
+        winnersShareBps = _winnersShareBps;
+    }
+
+    /**
+     * @notice Enable or disable the consolation pool for losing tickets
+     * @dev Only callable by owner. Applies to the rounds started after the change; a round
+     * already open keeps the rule it was started with.
+     * @param _enabled: true to share part of the pool with losing tickets, false to send it to the treasury
+     */
+    function setConsolationEnabled(bool _enabled) external onlyOwner {
+        consolationEnabled = _enabled;
     }
 
     /**
@@ -661,6 +767,37 @@ contract SaturneLottery is ReentrancyGuard, ISaturneLottery, Ownable {
         }
 
         return _calculateRewardsForTicketId(_lotteryId, _ticketId, _bracket);
+    }
+
+    /**
+     * @notice View the consolation reward for a given losing ticket and lottery id
+     * @dev Returns 0 if the lottery isn't claimable, has no consolation pool, the ticket is out
+     * of range, or the ticket actually won a prize bracket (and should be claimed via claimTickets)
+     * @param _lotteryId: lottery id
+     * @param _ticketId: ticket id
+     */
+    function viewRewardsForLosingTicketId(uint256 _lotteryId, uint256 _ticketId) external view returns (uint256) {
+        // Check lottery is in claimable status
+        if (_lotteries[_lotteryId].status != Status.Claimable) {
+            return 0;
+        }
+
+        // Check ticketId is within range
+        if (
+            (_ticketId < _lotteries[_lotteryId].firstTicketId) ||
+            (_ticketId >= _lotteries[_lotteryId].firstTicketIdNextLottery)
+        ) {
+            return 0;
+        }
+
+        // A ticket is a loser only if it has no prize in any bracket
+        for (uint32 bracket = 0; bracket < 6; bracket++) {
+            if (_calculateRewardsForTicketId(_lotteryId, _ticketId, bracket) != 0) {
+                return 0;
+            }
+        }
+
+        return _lotteries[_lotteryId].cakePerLosingTicket;
     }
 
     /**

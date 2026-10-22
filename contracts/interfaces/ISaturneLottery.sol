@@ -25,6 +25,14 @@ interface ISaturneLottery {
     ) external;
 
     /**
+     * @notice Claim a set of losing tickets to receive a share of the consolation pool
+     * @param _lotteryId: lottery id
+     * @param _ticketIds: array of ticket ids
+     * @dev Callable by users only, not contract!
+     */
+    function claimLosingTickets(uint256 _lotteryId, uint256[] calldata _ticketIds) external;
+
+    /**
      * @notice Close lottery
      * @param _lotteryId: lottery id
      * @dev Callable by operator

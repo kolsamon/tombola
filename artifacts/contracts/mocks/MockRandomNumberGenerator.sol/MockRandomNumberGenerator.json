@@ -1,0 +1,102 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "MockRandomNumberGenerator",
+  "sourceName": "contracts/mocks/MockRandomNumberGenerator.sol",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_seed",
+          "type": "uint256"
+        }
+      ],
+      "name": "getRandomNumber",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "latestLotteryId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "randomResult",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "",
+          "type": "uint32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_lotteryId",
+          "type": "uint256"
+        }
+      ],
+      "name": "setLatestLotteryId",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint32",
+          "name": "_result",
+          "type": "uint32"
+        }
+      ],
+      "name": "setRandomResult",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "viewLatestLotteryId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "viewRandomResult",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "",
+          "type": "uint32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b50610194806100206000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c8063a1c4f55a1161005b578063a1c4f55a146100eb578063b37217a4146100d8578063eed8e1ee146100f9578063fbe5d9171461011057600080fd5b806303da38031461008257806342619f66146100ae5780639a85cafa146100d8575b600080fd5b6100ac610090366004610118565b6000805463ffffffff191663ffffffff92909216919091179055565b005b6000546100be9063ffffffff1681565b60405163ffffffff90911681526020015b60405180910390f35b6100ac6100e6366004610145565b600155565b60005463ffffffff166100be565b61010260015481565b6040519081526020016100cf565b600154610102565b60006020828403121561012a57600080fd5b813563ffffffff8116811461013e57600080fd5b9392505050565b60006020828403121561015757600080fd5b503591905056fea2646970667358221220a731067b559259cfcf2a73fafc7ed770d6b598c5d27d54b3c7aff7d9dcc913ec64736f6c63430008150033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061007d5760003560e01c8063a1c4f55a1161005b578063a1c4f55a146100eb578063b37217a4146100d8578063eed8e1ee146100f9578063fbe5d9171461011057600080fd5b806303da38031461008257806342619f66146100ae5780639a85cafa146100d8575b600080fd5b6100ac610090366004610118565b6000805463ffffffff191663ffffffff92909216919091179055565b005b6000546100be9063ffffffff1681565b60405163ffffffff90911681526020015b60405180910390f35b6100ac6100e6366004610145565b600155565b60005463ffffffff166100be565b61010260015481565b6040519081526020016100cf565b600154610102565b60006020828403121561012a57600080fd5b813563ffffffff8116811461013e57600080fd5b9392505050565b60006020828403121561015757600080fd5b503591905056fea2646970667358221220a731067b559259cfcf2a73fafc7ed770d6b598c5d27d54b3c7aff7d9dcc913ec64736f6c63430008150033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
